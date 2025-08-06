@@ -2,9 +2,8 @@ package scheduler
 
 import (
 	"fmt"
-	"os/exec"
 	"runtime"
-	"sultengutt/internal/installer"
+	"sultengutt/internal/config"
 	"sultengutt/internal/utils"
 )
 
@@ -15,18 +14,18 @@ type Scheduler interface {
 	createTask() []string
 }
 
-func NewScheduler(options installer.InstallOptions) Scheduler {
-	execPath, err := utils.ResolveExecutablePath()
+func NewScheduler(options config.InstallOptions) Scheduler {
+	execPath, err := utils.ResolveExecutablePath("sultengutt")
 	if err != nil {
 		panic(fmt.Errorf("Failed to resolve executable path for Sultengutt: %w", err))
 	}
 	switch runtime.GOOS {
 	case "windows":
-		schTask, err := exec.LookPath("schtasks")
+		schTask, err := utils.ResolveExecutablePath("schtasks")
 		if err != nil {
 			panic(fmt.Errorf("Failed to find schtasks (Windows): %w", err))
 		}
-		return &WindowsScheduler{execPath: execPath, InstallOptions: options, schedulerExecPath: schTask}
+		return &WindowsScheduler{execPath: execPath, installOptions: options, schedulerExecPath: schTask}
 	default:
 		panic("Unsupported OS")
 	}

@@ -98,10 +98,12 @@ func (cm *ConfigManager) Save(cfg *Config) error {
 	}
 
 	if err := os.Rename(tempPath, configPath); err != nil {
-		os.Remove(tempPath)
+		err := os.Remove(tempPath)
+		if err != nil {
+			return err
+		}
 		return fmt.Errorf("failed to save config file: %w", err)
 	}
-
 	return nil
 }
 
@@ -120,6 +122,10 @@ func (c *Config) SetPausedUntil(timestamp int64) {
 
 func (c *Config) Resume() {
 	c.PausedUntil = -1
+}
+
+func (c *Config) Path() string {
+	return c.configPath
 }
 
 func (c *Config) validate() error {

@@ -5,9 +5,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"os"
+	"strings"
 	"sultengutt/internal/config"
 	"sultengutt/internal/installer"
 	"sultengutt/internal/scheduler"
+	"sultengutt/internal/utils"
+	"time"
 )
 
 var (
@@ -24,47 +27,16 @@ var (
 			Foreground(lipgloss.Color("#3498DB"))
 )
 
-func runInstall() error {
-	cfg, err := config.NewConfig()
-	if err != nil {
-		return fmt.Errorf("failed to check if Sultengutt is already installed: %w", err)
-	}
-	installed, err := cfg.IsFreshInstall()
-	if err != nil {
-		return fmt.Errorf("failed to check if Sultengutt is already installed: %w", err)
-	}
-	opts, err := installer.RunInstaller(installed, cfg.GetInstallOptions())
-	if err != nil {
-		return fmt.Errorf("installation cancelled or failed: %w", err)
-	}
-
-	err = cfg.SaveToFile()
-	if err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	sch := scheduler.NewScheduler(opts)
-	if installed {
-		if err := sch.UnregisterTask(); err != nil {
-			return fmt.Errorf("failed to unregister old task: %w", err)
-		}
-	}
-	if err := sch.RegisterTask(); err != nil {
-		return fmt.Errorf("failed to register task: %w", err)
-	}
-
-	fmt.Println(successStyle.Render("✓ Sultengutt is set up! Happy dining!"))
-	fmt.Println(infoStyle.Render("Config saved to: " + configPath + "\n\n"))
-	return nil
-}
-
 func main() {
 
 	cm, err := config.NewConfigManager()
+	if err != nil {
+		panic(fmt.Errorf("failed to initialize configuration: %w", err))
+	}
 	cfg, err := cm.Load()
 
 	if err != nil {
-		panic(fmt.Errorf("failed to initialize configuration: %w", err))
+		panic(fmt.Errorf("failed to load configuration: %w", err))
 	}
 
 	rootCmd := &cobra.Command{
@@ -74,11 +46,12 @@ func main() {
 			Bold(true).
 			Foreground(lipgloss.Color("#FF6B6B")).
 			Render("Sultengutt") + "\n\n" +
-			"Be reminded to order your suprise dinner on your schedule! Never be hungry again 🍔",
+			"Be reminded to order your surprise dinner on your schedule! Never be hungry again 🍔",
 		Example: `  sultengutt install
   sultengutt execute
-  sultengutt pause
-  sultengutt resume`,
+  sultengutt pause 1 day
+  sultengutt resume
+  sultengutt status`,
 	}
 
 	installCmd := &cobra.Command{
@@ -86,7 +59,7 @@ func main() {
 		Short: "Set up Sultengutt with interactive installer",
 		Long:  "Install or reinstall Sultengutt with an interactive installer.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInstall()
+			return runInstall(cfg, cm)
 		},
 	}
 
@@ -102,12 +75,21 @@ func main() {
 
 	pauseCmd := &cobra.Command{
 		Use:   "pause",
-		Short: "Pause the Sultengutt reminder",
-		Long:  "Pause Sultengutt for a period of time or until you resume",
+		Short: "Pause the Sultengutt reminder. Use -help for full examples",
+		Long:  "Pause Sultengutt for a period of time or until you resume\n\nAllowed units: day(s), week(s), month(s) or indefinitely (no arguments) ",
+		Example: `sultengutt pause 1 day
+	sultengutt pause 4 weeks
+	sultengutt pause 1 month
+	sultengutt pause // Pause indefinitely`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement pause functionality
-			fmt.Println(infoStyle.Render("Pause functionality not yet implemented"))
-			return nil
+			if cfg.IsFreshInstall() {
+				fmt.Println(errorStyle.Render("Sultengutt has not been installed yet, please run `sultengutt install` first"))
+				return nil
+			}
+			if err := runPause(args, cfg); err != nil {
+				return err
+			}
+			return cm.Save(cfg)
 		},
 	}
 
@@ -116,24 +98,115 @@ func main() {
 		Short: "Resume Sultengutt reminders",
 		Long:  "Manually resume Sultengutt reminders.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement pause functionality
-			fmt.Println(infoStyle.Render("Pause functionality not yet implemented"))
+			cfg.PausedUntil = -1
+			err := cm.Save(cfg)
+			if err != nil {
+				return fmt.Errorf("failed to save config: %w", err)
+			}
+			fmt.Println(infoStyle.Render("Resumed Sultengutt reminders"))
 			return nil
 		},
 	}
-	// Add commands to root
-	rootCmd.AddCommand(installCmd, executeCmd, pauseCmd, resumeCmd)
 
-	// Custom error handling with lipgloss styling
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show current status of Sultengutt",
+		Long:  "Show current status of Sultengutt.",
+		Run: func(cmd *cobra.Command, args []string) {
+			if cfg.IsFreshInstall() {
+				fmt.Println(errorStyle.Render("Sultengutt has not been installed yet, please run `sultengutt install` first"))
+				return
+			}
+			runStatus(*cfg)
+		},
+	}
+	rootCmd.AddCommand(installCmd, executeCmd, pauseCmd, resumeCmd, statusCmd)
+
 	rootCmd.SetErrPrefix(errorStyle.Render("Error:"))
 
-	// Execute the command
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(errorStyle.Render("✗ " + err.Error()))
 		os.Exit(1)
 	}
 } //a := app.New()
-//w := a.NewWindow("Sultengutt")
-//hello := widget.NewLabel("Remember to buy your suprise dinner for today!")
-//w.SetContent(container.NewVBox(hello))
-//w.ShowAndRun(
+// w := a.NewWindow("Sultengutt")
+// hello := widget.NewLabel("Remember to buy your suprise dinner for today!")
+// w.SetContent(container.NewVBox(hello))
+// w.ShowAndRun(
+func runInstall(cfg *config.Config, cm *config.ConfigManager) error {
+
+	installed := cfg.IsFreshInstall()
+	opts, err := installer.RunInstaller(installed, cfg.InstallOptions)
+	if err != nil {
+		return fmt.Errorf("installation cancelled or failed: %w", err)
+	}
+
+	cfg.InstallOptions = opts
+	err = cm.Save(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	sch := scheduler.NewScheduler(opts)
+	if installed {
+		if err := sch.UnregisterTask(); err != nil {
+			return fmt.Errorf("failed to unregister old task: %w", err)
+		}
+	}
+	if err := sch.RegisterTask(); err != nil {
+		return fmt.Errorf("failed to register task: %w", err)
+	}
+
+	fmt.Println(successStyle.Render("✓ Sultengutt is set up! Happy dining!"))
+	fmt.Println(infoStyle.Render("Config saved to: " + cfg.Path() + "\n\n"))
+	return nil
+}
+
+func runPause(args []string, cfg *config.Config) error {
+	if len(args) == 0 {
+		// Pause indefinitely
+		cfg.PausedUntil = 0
+		fmt.Println("Paused indefinitely. Use 'sultengutt resume' to unpause.")
+		return nil
+	}
+
+	duration, err := utils.ParseDuration(args)
+	if err != nil {
+		return fmt.Errorf("error parsing duration: %v", err)
+	}
+
+	scheduledHour := cfg.InstallOptions.Hour
+	pauseUntil, err := utils.CalculatePauseUntil(duration, scheduledHour)
+	if err != nil {
+		return fmt.Errorf("error calculating pause time: %v", err)
+	}
+
+	cfg.PausedUntil = pauseUntil
+
+	unpauseTime := time.Unix(pauseUntil, 0)
+	fmt.Printf("Paused until %s at %s\n",
+		unpauseTime.Format("Monday, January 2, 2006"),
+		unpauseTime.Format("15:04"))
+
+	return nil
+}
+
+func runStatus(cfg config.Config) {
+	fmt.Println("╭─────────────────────────────────────╮")
+	fmt.Println("│      SULTENGUTT STATUS              │")
+	fmt.Println("╰─────────────────────────────────────╯")
+	fmt.Println()
+	fmt.Println("Schedule:")
+	fmt.Println("  Hour: " + cfg.InstallOptions.Hour)
+	fmt.Println("  Days: " + strings.Join(cfg.InstallOptions.Days, ", "))
+	fmt.Println()
+	fmt.Println("Status:")
+	fmt.Println("  Config path: " + cfg.Path())
+	if cfg.PausedUntil > 0 {
+		fmt.Println("  Paused: paused until " + time.Unix(cfg.PausedUntil, 0).Format("Monday, January 2, 2006 15:04"))
+		fmt.Println("  tip: use 'sultengutt resume' to unpause early")
+	} else {
+		fmt.Println("  Paused: not paused (active)")
+	}
+
+}
