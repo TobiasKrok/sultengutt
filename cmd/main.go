@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sultengutt/internal/config"
 	"sultengutt/internal/installer"
+	"sultengutt/internal/popup"
 	"sultengutt/internal/scheduler"
 	"sultengutt/internal/utils"
 	"time"
@@ -68,7 +69,20 @@ func main() {
 		Short: "Execute Sultengutt reminder",
 		Long:  "Executes Sultengutt to trigger the popup reminder.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(infoStyle.Render("Execute functionality not yet implemented"))
+			if cfg.IsPaused() && cfg.PausedUntil == 0 || cfg.IsPaused() && cfg.PausedUntil > 0 && time.Now().Unix() < cfg.PausedUntil {
+				fmt.Println("paused. Use 'sultengutt resume' to unpause.")
+				return nil
+			}
+			// check if we need to resume
+			if cfg.IsPaused() && cfg.PausedUntil > 0 && time.Now().Unix() >= cfg.PausedUntil {
+				cfg.PausedUntil = -1
+				err := cm.Save(cfg)
+				if err != nil {
+					return fmt.Errorf("failed to save config: %w", err)
+				}
+			}
+
+			popup.Run()
 			return nil
 		},
 	}
