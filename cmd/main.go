@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
 	"os"
 	"strings"
 	"sultengutt/internal/config"
@@ -12,6 +10,9 @@ import (
 	"sultengutt/internal/scheduler"
 	"sultengutt/internal/utils"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -161,7 +162,7 @@ func runInstall(cfg *config.Config, cm *config.ConfigManager) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	sch := scheduler.NewScheduler(opts)
+	sch := scheduler.NewScheduler(opts, cm.ConfigDir())
 	if installed {
 		if err := sch.UnregisterTask(); err != nil {
 			return fmt.Errorf("failed to unregister old task: %w", err)

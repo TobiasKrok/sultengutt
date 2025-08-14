@@ -2,6 +2,7 @@ package installer
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"sultengutt/internal/config"
@@ -106,6 +107,18 @@ func RunInstaller(alreadyInstalled bool, prev config.InstallOptions) (config.Ins
 					time24hRegex := regexp.MustCompile(config.Time24hRegex)
 					if !time24hRegex.MatchString(t) {
 						return fmt.Errorf("Time must be in format HH:MM (24h)")
+					}
+					return nil
+				})),
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Order URL").
+				Description("Where would you like to be redirected when clicking 'Order'?").
+				Value(&options.SiteLink).
+				Validate(func(t string) error {
+					_, err := url.Parse(t)
+					if err != nil {
+						return fmt.Errorf("URL is invalid")
 					}
 					return nil
 				}),

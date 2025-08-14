@@ -17,11 +17,11 @@ import (
 func Run() {
 	myApp := app.New()
 	window := myApp.NewWindow("🍽️ Sultengutt Reminder")
-	
+
 	// Set a reasonable size and center the window
 	window.Resize(fyne.NewSize(400, 300))
 	window.CenterOnScreen()
-	
+
 	// Random messages
 	messages := []string{
 		"Your colleagues are counting on you!",
@@ -29,44 +29,44 @@ func Run() {
 		"Spread the joy with a surprise meal!",
 		"Make today special for your team!",
 	}
-	
+
 	tips := []string{
 		"💡 Tip: Consider dietary restrictions when ordering",
 		"💡 Fact: Surprise dinners boost team morale by 73%!",
 		"💡 Pro tip: Pizza is always a crowd favorite",
 		"💡 Remember: Variety is the spice of life!",
 	}
-	
+
 	// Create simple UI elements without custom rendering
 	title := widget.NewLabel("🍽️ Time for Surprise Dinner!")
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.Alignment = fyne.TextAlignCenter
-	
+
 	message := widget.NewLabel(messages[rand.Intn(len(messages))])
 	message.Alignment = fyne.TextAlignCenter
 	message.Wrapping = fyne.TextWrapWord
-	
+
 	tip := widget.NewLabel(tips[rand.Intn(len(tips))])
 	tip.Alignment = fyne.TextAlignCenter
 	tip.Wrapping = fyne.TextWrapWord
-	
+
 	// Create buttons
 	orderButton := widget.NewButton("Order Now! 🛍️", func() {
 		fmt.Println("Opening food ordering site...")
 		window.Close()
 	})
 	orderButton.Importance = widget.HighImportance
-	
+
 	snoozeButton := widget.NewButton("Snooze (30 min)", func() {
 		fmt.Println("Snoozed for 30 minutes")
 		window.Close()
 	})
-	
+
 	skipButton := widget.NewButton("Skip Today", func() {
 		fmt.Println("Skipped today's reminder")
 		window.Close()
 	})
-	
+
 	// Create simple layout without custom widgets or animations
 	content := container.NewVBox(
 		container.NewPadded(title),
@@ -81,12 +81,12 @@ func Run() {
 			orderButton,
 		),
 	)
-	
+
 	// Add padding around the entire content
 	paddedContent := container.NewPadded(content)
-	
+
 	window.SetContent(paddedContent)
-	
+
 	// Auto-close after 3 minutes
 	go func() {
 		time.Sleep(3 * time.Minute)
@@ -94,6 +94,6 @@ func Run() {
 			window.Close()
 		}
 	}()
-	
+
 	window.ShowAndRun()
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,8 +18,9 @@ const (
 var validDays = []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 
 type InstallOptions struct {
-	Days []string `json:"days"`
-	Hour string   `json:"hour"`
+	Days     []string `json:"days"`
+	Hour     string   `json:"hour"`
+	SiteLink string   `json:"sitelink"`
 }
 
 type Config struct {
@@ -107,6 +109,10 @@ func (cm *ConfigManager) Save(cfg *Config) error {
 	return nil
 }
 
+func (cm *ConfigManager) ConfigDir() string {
+	return cm.configDir
+}
+
 func (c *Config) IsFreshInstall() bool {
 	return c.isFreshInstall
 
@@ -144,6 +150,13 @@ func (c *Config) validate() error {
 	pattern := regexp.MustCompile(Time24hRegex)
 	if !pattern.MatchString(c.InstallOptions.Hour) {
 		return errors.New("invalid hour specified")
+	}
+	if c.InstallOptions.SiteLink == "" {
+		return errors.New("no site link specified")
+	}
+	_, err := url.Parse(c.InstallOptions.SiteLink)
+	if err != nil {
+		return errors.New("invalid URL format: " + c.InstallOptions.SiteLink)
 	}
 	return nil
 }
