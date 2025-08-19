@@ -13,17 +13,15 @@ func GenerateWindowsScript(configDir string) (string, error) {
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create config directory: %w", err)
 	}
-	
+
 	scriptPath := filepath.Join(configDir, "popup.ps1")
-	
+
 	// Random motivational messages
 	messages := []string{
 		"Time to order surprise dinner!",
-		"Your team is counting on you",
-		"Make someone's day special",
-		"Spread joy with a meal",
+		"Save money!!",
 	}
-	
+
 	// Load mantra from config file
 	var mantraText string
 	mantraLoader, err := mantras.New()
@@ -32,9 +30,9 @@ func GenerateWindowsScript(configDir string) (string, error) {
 	} else {
 		mantraText = mantraLoader.GetRandom()
 	}
-	
+
 	randomMessage := messages[rand.Intn(len(messages))]
-	
+
 	// Modern PowerShell script with WPF for better UI
 	scriptContent := fmt.Sprintf(`Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName System.Drawing
@@ -193,11 +191,11 @@ $timer.Start()
 # Show the window
 $window.ShowDialog() | Out-Null
 `, randomMessage, mantraText)
-	
+
 	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0644); err != nil {
 		return "", fmt.Errorf("failed to write script file: %w", err)
 	}
-	
+
 	return scriptPath, nil
 }
 
@@ -206,9 +204,9 @@ func GenerateWindowsFallbackScript(configDir string) (string, error) {
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create config directory: %w", err)
 	}
-	
+
 	scriptPath := filepath.Join(configDir, "popup_fallback.ps1")
-	
+
 	// Random motivational messages
 	messages := []string{
 		"Time to order surprise dinner!",
@@ -216,7 +214,7 @@ func GenerateWindowsFallbackScript(configDir string) (string, error) {
 		"Make someone's day special",
 		"Spread joy with a meal",
 	}
-	
+
 	// Load mantra from config file
 	var mantraText string
 	mantraLoader, err := mantras.New()
@@ -225,9 +223,9 @@ func GenerateWindowsFallbackScript(configDir string) (string, error) {
 	} else {
 		mantraText = mantraLoader.GetRandom()
 	}
-	
+
 	randomMessage := messages[rand.Intn(len(messages))]
-	
+
 	// Simpler Windows Forms script with modern styling
 	scriptContent := fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -358,10 +356,11 @@ $timer.Start()
 
 $form.ShowDialog()
 `, randomMessage, mantraText)
-	
+
 	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0644); err != nil {
 		return "", fmt.Errorf("failed to write fallback script file: %w", err)
 	}
-	
+
 	return scriptPath, nil
 }
+

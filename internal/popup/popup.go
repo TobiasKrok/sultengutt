@@ -45,6 +45,7 @@ func Run() {
 
 	// Clean, modern window size
 	window.Resize(fyne.NewSize(460, 400))
+
 	window.CenterOnScreen()
 
 	messages := []string{

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sultengutt/internal/config"
 	"sultengutt/internal/installer"
@@ -84,7 +85,12 @@ func main() {
 				}
 			}
 
-			popup.Run()
+			switch runtime.GOOS {
+
+			case "darwin":
+				popup.Run()
+			}
+
 			return nil
 		},
 	}

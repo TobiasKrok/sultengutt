@@ -22,7 +22,7 @@ func ResolveExecutablePath(execPath string) (string, error) {
 // ParseDuration parses duration strings in various formats
 func ParseDuration(input interface{}) (time.Duration, error) {
 	var durationStr string
-	
+
 	// Handle both string and []string inputs
 	switch v := input.(type) {
 	case string:
@@ -37,11 +37,11 @@ func ParseDuration(input interface{}) (time.Duration, error) {
 	}
 
 	durationStr = strings.TrimSpace(durationStr)
-	
+
 	// Single regex to handle all formats
 	re := regexp.MustCompile(`^\s*(\d+)\s*([mhd]|minutes?|mins?|hours?|hrs?|days?|weeks?|months?)\s*$`)
 	matches := re.FindStringSubmatch(durationStr)
-	
+
 	if matches == nil {
 		return 0, fmt.Errorf("invalid duration format")
 	}
@@ -52,7 +52,7 @@ func ParseDuration(input interface{}) (time.Duration, error) {
 	}
 
 	unit := strings.ToLower(strings.TrimSuffix(matches[2], "s"))
-	
+
 	// Map all unit variations to duration
 	switch unit {
 	case "m", "min", "minute":
@@ -98,7 +98,7 @@ func CalculatePauseUntil(duration time.Duration, scheduledHour string) (int64, e
 	}
 
 	now := time.Now()
-	
+
 	// Calculate next scheduled time
 	scheduledTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 	if scheduledTime.Before(now) || scheduledTime.Equal(now) {
