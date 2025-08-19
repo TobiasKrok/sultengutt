@@ -11,7 +11,7 @@ type Scheduler interface {
 	RegisterTask() error
 	UnregisterTask() error
 	TaskExists() (bool, error)
-	createTask() []string
+	Snooze() error
 }
 
 func NewScheduler(options config.InstallOptions, configDir string) Scheduler {

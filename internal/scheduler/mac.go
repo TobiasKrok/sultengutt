@@ -79,9 +79,9 @@ func (m *MacScheduler) TaskExists() (bool, error) {
 	return true, nil
 }
 
-func (m *MacScheduler) createTask() []string {
-	// Not used for Mac, but required by interface
-	return []string{}
+func (m *MacScheduler) Snooze() error {
+	// TODO: Implement snooze functionality
+	return nil
 }
 
 func (m *MacScheduler) getPlistPath() string {
