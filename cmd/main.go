@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sultengutt/internal/config"
 	"sultengutt/internal/installer"
-	"sultengutt/internal/popup"
+	macpop "sultengutt/internal/popup/mac"
+	winpop "sultengutt/internal/popup/windows"
 	"sultengutt/internal/scheduler"
 	"sultengutt/internal/utils"
 	"time"
@@ -88,7 +88,9 @@ func main() {
 			switch runtime.GOOS {
 
 			case "darwin":
-				popup.Run()
+				macpop.RunMacPopup(cfg.InstallOptions.SiteLink)
+			case "windows":
+				winpop.RunWindowsPopup()
 			}
 
 			return nil
@@ -150,42 +152,7 @@ func main() {
 		fmt.Println(errorStyle.Render("✗ " + err.Error()))
 		os.Exit(1)
 	}
-} //a := app.New()
-
-// w := a.NewWindow("Sultengutt")
-// hello := widget.NewLabel("Remember to buy your suprise dinner for today!")
-// w.SetContent(container.NewVBox(hello))
-// w.ShowAndRun(
-
-func copyMantrasToUserConfig(configDir string) error {
-	destPath := filepath.Join(configDir, "mantras.json")
-
-	// Check if file already exists
-	if _, err := os.Stat(destPath); err == nil {
-		return nil // File already exists
-	}
-
-	// Try to copy from the distributed config file
-	execPath, err := os.Executable()
-	if err != nil {
-		return err
-	}
-
-	possibleSources := []string{
-		filepath.Join(filepath.Dir(execPath), "config", "mantras.json"),
-		filepath.Join(filepath.Dir(execPath), "..", "config", "mantras.json"),
-		"config/mantras.json",
-	}
-
-	for _, source := range possibleSources {
-		if data, err := os.ReadFile(source); err == nil {
-			return os.WriteFile(destPath, data, 0644)
-		}
-	}
-
-	return fmt.Errorf("mantras.json source file not found")
 }
-
 func runInstall(cfg *config.Config, cm *config.ConfigManager) error {
 
 	installed := cfg.IsFreshInstall()
@@ -198,12 +165,6 @@ func runInstall(cfg *config.Config, cm *config.ConfigManager) error {
 	err = cm.Save(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	// Copy mantras.json to user config directory if it doesn't exist
-	if err := copyMantrasToUserConfig(cm.ConfigDir()); err != nil {
-		// Not critical, just log it
-		fmt.Println(infoStyle.Render("Note: Could not copy mantras.json to config directory"))
 	}
 
 	sch := scheduler.NewScheduler(opts, cm.ConfigDir())

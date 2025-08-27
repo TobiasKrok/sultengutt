@@ -3,10 +3,9 @@ package scheduler
 import (
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sultengutt/internal/config"
-	"sultengutt/internal/popup"
+	win "sultengutt/internal/popup/windows"
 )
 
 type WindowsScheduler struct {
@@ -18,14 +17,7 @@ type WindowsScheduler struct {
 
 func (w *WindowsScheduler) RegisterTask() error {
 	// Create the modern popup script
-	_, err := popup.GenerateWindowsScript(w.configDir)
-	if err != nil {
-		// Try fallback script if WPF version fails
-		_, err = popup.GenerateWindowsFallbackScript(w.configDir)
-		if err != nil {
-			return fmt.Errorf("failed to create popup script: %w", err)
-		}
-	}
+	_, err := win.GenerateWindowsScript(w.configDir, w.installOptions.SiteLink)
 
 	args := w.createTask()
 	cmd := exec.Command(w.schedulerExecPath, args...)
@@ -52,18 +44,6 @@ func (w *WindowsScheduler) UnregisterTask() error {
 	return nil
 }
 
-func (w *WindowsScheduler) Snooze() error {
-	exists, err := w.TaskExists()
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return nil
-	}
-
-	return nil
-}
-
 func (w *WindowsScheduler) TaskExists() (bool, error) {
 	// we assume there is only one Sultengutt task :)
 	cmd := exec.Command(w.schedulerExecPath, "/query", "/tn", "Sultengutt")
@@ -83,10 +63,9 @@ func (w *WindowsScheduler) createTask() []string {
 	for _, day := range w.installOptions.Days {
 		days = append(days, strings.ToUpper(day)[0:3]) // schtask accepts strings like MON,TUE,THU
 	}
-	scriptPath := filepath.Join(w.configDir, "popup.ps1")
 	return []string{"/create",
 		"/tn", "Sultengutt",
-		"/tr", fmt.Sprintf("powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File \"%s\"", scriptPath),
+		"/tr", "sultengutt execute",
 		"/sc", "weekly",
 		"/d", strings.Join(days, ","),
 		"/st", w.installOptions.Hour,
