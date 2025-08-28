@@ -1,0 +1,95 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: sultengutt-darwin
+    main: ./cmd/main.go
+    binary: sultengutt
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+  - id: sultengutt-windows
+    main: ./cmd/main.go
+    binary: sultengutt
+    goos:
+      - windows
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+    ldflags:
+      - -s -w
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: archive
+    builds:
+      - sultengutt-darwin
+      - sultengutt-windows
+    name_template: >-
+      {{ .ProjectName }}-
+      {{- if eq .Os "darwin" }}darwin{{ end }}
+      {{- if eq .Os "windows" }}windows{{ end }}-
+      {{- if eq .Arch "amd64" }}amd64{{ end }}
+      {{- if eq .Arch "arm64" }}arm64{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+release:
+  github:
+    owner: TobiasKrok
+    name: sultengutt
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Installation
+    
+    ### Homebrew (macOS)
+    ```bash
+    brew tap tobiaskrok/sultengutt
+    brew install sultengutt
+    ```
+    
+    ### Scoop (Windows)
+    ```bash
+    scoop bucket add tobiaskrok https://github.com/TobiasKrok/scoop-bucket
+    scoop install sultengutt
+    ```
+    
+    ### Manual Installation
+    Download the appropriate binary for your platform below.
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^build:'
+      - '^style:'
+      - '^refactor:'
+      - '^chore:'

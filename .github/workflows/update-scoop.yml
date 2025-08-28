@@ -1,0 +1,80 @@
+name: Update Scoop Manifest
+
+on:
+  repository_dispatch:
+    types: [update-manifest]
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout scoop-bucket
+        uses: actions/checkout@v4
+        with:
+          repository: TobiasKrok/scoop-bucket
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      
+      - name: Get release info
+        id: release
+        run: |
+          VERSION="${{ github.event.client_payload.version }}"
+          VERSION_CLEAN="${VERSION#v}"  # Remove 'v' prefix
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_clean=${VERSION_CLEAN}" >> $GITHUB_OUTPUT
+          
+          # Get release data from GitHub API
+          RELEASE_DATA=$(curl -s https://api.github.com/repos/TobiasKrok/sultengutt/releases/tags/${VERSION})
+          
+          # Extract Windows URL
+          WINDOWS_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | contains("windows-amd64.zip")) | .browser_download_url')
+          
+          # Download and calculate SHA256
+          curl -L "$WINDOWS_URL" -o windows.zip
+          SHA256=$(sha256sum windows.zip | cut -d' ' -f1)
+          
+          echo "windows_url=${WINDOWS_URL}" >> $GITHUB_OUTPUT
+          echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
+      
+      - name: Update Manifest
+        run: |
+          mkdir -p bucket
+          cat > bucket/sultengutt.json << EOF
+          {
+              "version": "${{ steps.release.outputs.version_clean }}",
+              "description": "Cross-platform desktop reminder for ordering surprise dinners",
+              "homepage": "https://github.com/TobiasKrok/sultengutt",
+              "license": "MIT",
+              "architecture": {
+                  "64bit": {
+                      "url": "${{ steps.release.outputs.windows_url }}",
+                      "hash": "${{ steps.release.outputs.sha256 }}"
+                  }
+              },
+              "bin": "sultengutt.exe",
+              "pre_uninstall": [
+                  "& \"\$dir\\\\sultengutt.exe\" uninstall --confirm 2>\$null | Out-Null"
+              ],
+              "checkver": {
+                  "github": "https://github.com/TobiasKrok/sultengutt"
+              },
+              "autoupdate": {
+                  "architecture": {
+                      "64bit": {
+                          "url": "https://github.com/TobiasKrok/sultengutt/releases/download/v\$version/sultengutt-windows-amd64.zip"
+                      }
+                  }
+              },
+              "post_install": [
+                  "Write-Host 'To set up Sultengutt, run: sultengutt install' -ForegroundColor Green",
+                  "Write-Host 'To check status: sultengutt status' -ForegroundColor Green"
+              ]
+          }
+          EOF
+      
+      - name: Commit and push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add bucket/sultengutt.json
+          git commit -m "Update sultengutt to ${{ steps.release.outputs.version_clean }}"
+          git push

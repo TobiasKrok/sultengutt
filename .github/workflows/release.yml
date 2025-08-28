@@ -1,0 +1,175 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            binary_name: sultengutt.exe
+            artifact_name: sultengutt-windows-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            binary_name: sultengutt
+            artifact_name: sultengutt-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            binary_name: sultengutt
+            artifact_name: sultengutt-darwin-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      
+      - name: Install dependencies for cross-compilation
+        if: matrix.goos == 'windows' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+      
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+          CC: ${{ matrix.goos == 'windows' && 'x86_64-w64-mingw32-gcc' || '' }}
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -ldflags="-w -s" -o ${{ matrix.binary_name }} cmd/main.go
+          else
+            go build -ldflags="-w -s" -o ${{ matrix.binary_name }} cmd/main.go
+          fi
+      
+      - name: Create archive
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip ${{ matrix.artifact_name }}.zip ${{ matrix.binary_name }}
+          else
+            tar czf ${{ matrix.artifact_name }}.tar.gz ${{ matrix.binary_name }}
+          fi
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}.zip
+            ${{ matrix.artifact_name }}.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          for dir in */; do
+            cd "$dir"
+            for file in *; do
+              if [ -f "$file" ]; then
+                sha256sum "$file" > "${file}.sha256"
+                mv "$file" ../
+                mv "${file}.sha256" ../
+              fi
+            done
+            cd ..
+          done
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ steps.get_version.outputs.version }}
+          body: |
+            ## Installation
+            
+            ### Homebrew (macOS)
+            ```bash
+            brew tap tobiaskrok/sultengutt
+            brew install sultengutt
+            ```
+            
+            ### Scoop (Windows)
+            ```bash
+            scoop bucket add tobiaskrok https://github.com/TobiasKrok/scoop-bucket
+            scoop install sultengutt
+            ```
+            
+            ### Manual Installation
+            Download the appropriate binary for your platform below.
+          draft: false
+          prerelease: false
+      
+      - name: Upload Release Assets
+        run: |
+          upload_url="${{ steps.create_release.outputs.upload_url }}"
+          cd artifacts
+          for file in *; do
+            if [ -f "$file" ] && [[ ! "$file" == */* ]]; then
+              echo "Uploading $file"
+              curl -X POST \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: $(file -b --mime-type "$file")" \
+                --data-binary @"$file" \
+                "${upload_url%\{*}?name=$file"
+            fi
+          done
+
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Homebrew Update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          repository: TobiasKrok/homebrew-sultengutt
+          event-type: update-formula
+          client-payload: '{"version": "${{ needs.release.outputs.version }}"}'
+
+  update-scoop:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Scoop Update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          repository: TobiasKrok/scoop-bucket
+          event-type: update-manifest
+          client-payload: '{"version": "${{ needs.release.outputs.version }}"}'

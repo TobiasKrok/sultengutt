@@ -1,0 +1,92 @@
+name: Update Homebrew Formula
+
+on:
+  repository_dispatch:
+    types: [update-formula]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout homebrew-sultengutt
+        uses: actions/checkout@v4
+        with:
+          repository: TobiasKrok/homebrew-sultengutt
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      
+      - name: Get release info
+        id: release
+        run: |
+          VERSION="${{ github.event.client_payload.version }}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+          # Get release data from GitHub API
+          RELEASE_DATA=$(curl -s https://api.github.com/repos/TobiasKrok/sultengutt/releases/tags/${VERSION})
+          
+          # Extract URLs and calculate SHA256
+          DARWIN_AMD64_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | contains("darwin-amd64")) | .browser_download_url')
+          DARWIN_ARM64_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | contains("darwin-arm64")) | .browser_download_url')
+          WINDOWS_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | contains("windows")) | .browser_download_url')
+          
+          # Download and calculate SHA256
+          curl -L "$DARWIN_AMD64_URL" -o darwin-amd64.tar.gz
+          curl -L "$DARWIN_ARM64_URL" -o darwin-arm64.tar.gz
+          
+          SHA256_AMD64=$(sha256sum darwin-amd64.tar.gz | cut -d' ' -f1)
+          SHA256_ARM64=$(sha256sum darwin-arm64.tar.gz | cut -d' ' -f1)
+          
+          echo "darwin_amd64_url=${DARWIN_AMD64_URL}" >> $GITHUB_OUTPUT
+          echo "darwin_arm64_url=${DARWIN_ARM64_URL}" >> $GITHUB_OUTPUT
+          echo "sha256_amd64=${SHA256_AMD64}" >> $GITHUB_OUTPUT
+          echo "sha256_arm64=${SHA256_ARM64}" >> $GITHUB_OUTPUT
+      
+      - name: Update Formula
+        run: |
+          cat > sultengutt.rb << EOF
+          class Sultengutt < Formula
+            desc "Cross-platform desktop reminder for ordering surprise dinners"
+            homepage "https://github.com/TobiasKrok/sultengutt"
+            version "${{ steps.release.outputs.version }}"
+            license "MIT"
+          
+            on_macos do
+              if Hardware::CPU.intel?
+                url "${{ steps.release.outputs.darwin_amd64_url }}"
+                sha256 "${{ steps.release.outputs.sha256_amd64 }}"
+              else
+                url "${{ steps.release.outputs.darwin_arm64_url }}"
+                sha256 "${{ steps.release.outputs.sha256_arm64 }}"
+              end
+            end
+          
+            def install
+              bin.install "sultengutt"
+            end
+          
+            def caveats
+              <<~EOS
+                To set up Sultengutt, run:
+                  sultengutt install
+                
+                To check status:
+                  sultengutt status
+                
+                ⚠️  IMPORTANT: Before uninstalling with Homebrew:
+                  Run 'sultengutt uninstall' first to remove scheduled tasks and config files.
+                  Then run 'brew uninstall sultengutt' to remove the application.
+              EOS
+            end
+          
+            test do
+              assert_match "Sultengutt", shell_output("#{bin}/sultengutt --help")
+            end
+          end
+          EOF
+      
+      - name: Commit and push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add sultengutt.rb
+          git commit -m "Update sultengutt to ${{ steps.release.outputs.version }}"
+          git push
