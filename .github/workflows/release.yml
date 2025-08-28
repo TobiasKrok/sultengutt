@@ -72,7 +72,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     
     steps:
@@ -80,38 +79,50 @@ jobs:
       
       - name: Get version
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Processing version: ${VERSION}"
       
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
       
-      - name: Generate checksums
+      - name: Prepare release assets
         run: |
+          echo "Organizing release assets..."
           cd artifacts
+          
+          # Move all artifacts to root and generate checksums
           for dir in */; do
+            echo "Processing directory: $dir"
             cd "$dir"
             for file in *; do
               if [ -f "$file" ]; then
+                echo "Processing file: $file"
                 sha256sum "$file" > "${file}.sha256"
                 mv "$file" ../
                 mv "${file}.sha256" ../
               fi
             done
             cd ..
+            rmdir "$dir" 2>/dev/null || true
           done
+          
+          echo "Final artifacts:"
+          ls -la
       
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
           body: |
-            ## Installation
+            ## 🎉 Sultengutt ${{ steps.get_version.outputs.version }}
+            
+            Cross-platform desktop reminder for ordering surprise dinners.
+            
+            ## 📦 Installation
             
             ### Homebrew (macOS)
             ```bash
@@ -126,45 +137,75 @@ jobs:
             ```
             
             ### Manual Installation
-            Download the appropriate binary for your platform below.
+            Download the appropriate binary for your platform below, extract it, and place it in your PATH.
+            
+            ## 🚀 Getting Started
+            
+            After installation, run:
+            ```bash
+            sultengutt install
+            ```
+            
+            ## 📋 Available Commands
+            
+            - `sultengutt install` - Set up and configure Sultengutt
+            - `sultengutt status` - Check current status and configuration
+            - `sultengutt pause [duration]` - Pause reminders temporarily
+            - `sultengutt resume` - Resume reminders
+            - `sultengutt execute` - Manually trigger reminder popup
+            - `sultengutt uninstall` - Remove Sultengutt completely
+          files: ./artifacts/*
           draft: false
           prerelease: false
-      
-      - name: Upload Release Assets
-        run: |
-          upload_url="${{ steps.create_release.outputs.upload_url }}"
-          cd artifacts
-          for file in *; do
-            if [ -f "$file" ] && [[ ! "$file" == */* ]]; then
-              echo "Uploading $file"
-              curl -X POST \
-                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Content-Type: $(file -b --mime-type "$file")" \
-                --data-binary @"$file" \
-                "${upload_url%\{*}?name=$file"
-            fi
-          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   update-homebrew:
     needs: release
     runs-on: ubuntu-latest
     steps:
+      - name: Wait for release to be available
+        run: |
+          echo "Waiting 30 seconds for release to be fully available..."
+          sleep 30
+      
       - name: Trigger Homebrew Update
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           repository: TobiasKrok/homebrew-sultengutt
           event-type: update-formula
-          client-payload: '{"version": "${{ needs.release.outputs.version }}"}'
+          client-payload: |
+            {
+              "version": "${{ needs.release.outputs.version }}"
+            }
+      
+      - name: Log dispatch
+        run: |
+          echo "✅ Dispatched update-formula event to homebrew-sultengutt"
+          echo "Version: ${{ needs.release.outputs.version }}"
 
   update-scoop:
     needs: release
     runs-on: ubuntu-latest
     steps:
+      - name: Wait for release to be available
+        run: |
+          echo "Waiting 30 seconds for release to be fully available..."
+          sleep 30
+      
       - name: Trigger Scoop Update
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           repository: TobiasKrok/scoop-bucket
           event-type: update-manifest
-          client-payload: '{"version": "${{ needs.release.outputs.version }}"}'
+          client-payload: |
+            {
+              "version": "${{ needs.release.outputs.version }}"
+            }
+      
+      - name: Log dispatch
+        run: |
+          echo "✅ Dispatched update-manifest event to scoop-bucket"
+          echo "Version: ${{ needs.release.outputs.version }}"
