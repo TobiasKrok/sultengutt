@@ -113,6 +113,13 @@ func (cm *ConfigManager) ConfigDir() string {
 	return cm.configDir
 }
 
+func (cm *ConfigManager) Clean() error {
+	if err := os.RemoveAll(cm.configDir); err != nil {
+		return fmt.Errorf("failed to remove config directory: %w", err)
+	}
+	return nil
+}
+
 func (c *Config) IsFreshInstall() bool {
 	return c.isFreshInstall
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"runtime"
@@ -144,7 +145,21 @@ func main() {
 			runStatus(*cfg)
 		},
 	}
-	rootCmd.AddCommand(installCmd, executeCmd, pauseCmd, resumeCmd, statusCmd)
+
+	uninstallCmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Uninstall Sultengutt completely",
+		Long:  "Uninstall Sultengutt, removing all scheduled tasks and configuration files.",
+		Example: `  sultengutt uninstall
+  sultengutt uninstall --confirm`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			confirm, _ := cmd.Flags().GetBool("confirm")
+			return runUninstall(cfg, cm, confirm)
+		},
+	}
+	uninstallCmd.Flags().Bool("confirm", false, "Skip confirmation prompt")
+
+	rootCmd.AddCommand(installCmd, executeCmd, pauseCmd, resumeCmd, statusCmd, uninstallCmd)
 
 	rootCmd.SetErrPrefix(errorStyle.Render("Error:"))
 
@@ -229,4 +244,43 @@ func runStatus(cfg config.Config) {
 		fmt.Println("  Paused: not paused (active)")
 	}
 
+}
+
+func runUninstall(cfg *config.Config, cm *config.ConfigManager, skipConfirm bool) error {
+	if cfg.IsFreshInstall() {
+		fmt.Println(infoStyle.Render("Sultengutt is not installed"))
+		return nil
+	}
+
+	if !skipConfirm {
+		fmt.Println("This will completely uninstall Sultengutt.")
+		fmt.Println(errorStyle.Render("WARNING: This will remove all scheduled tasks and configuration files."))
+		fmt.Print("\nAre you sure you want to continue? (y/N): ")
+
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read response: %w", err)
+		}
+
+		response = strings.TrimSpace(strings.ToLower(response))
+		if response != "y" && response != "yes" {
+			fmt.Println("Uninstall cancelled")
+			return nil
+		}
+	}
+	sch := scheduler.NewScheduler(cfg.InstallOptions, cm.ConfigDir())
+	if err := sch.UnregisterTask(); err != nil {
+		return fmt.Errorf("failed to unregister scheduled task: %w", err)
+	}
+	fmt.Println(successStyle.Render("Removed scheduled tasks"))
+
+	if err := cm.Clean(); err != nil {
+		return fmt.Errorf("failed to clean configuration: %w", err)
+	}
+	fmt.Println(successStyle.Render("Removed configuration files"))
+
+	fmt.Println(successStyle.Render("\n✓ Sultengutt has been uninstalled"))
+
+	return nil
 }
