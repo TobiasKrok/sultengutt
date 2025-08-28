@@ -49,6 +49,12 @@ func NewConfigManager() (*ConfigManager, error) {
 }
 
 func (cm *ConfigManager) Load() (*Config, error) {
+	isFreshInstall := false
+
+	if _, err := os.Stat(cm.configDir); os.IsNotExist(err) {
+		isFreshInstall = true
+	}
+
 	if err := os.MkdirAll(cm.configDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -74,7 +80,7 @@ func (cm *ConfigManager) Load() (*Config, error) {
 	}
 
 	cfg.configPath = configPath
-	cfg.isFreshInstall = false
+	cfg.isFreshInstall = isFreshInstall
 
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)

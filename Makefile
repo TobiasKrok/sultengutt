@@ -79,7 +79,7 @@ build: clean ## Build for current platform
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)$(BINARY_EXT) cmd/main.go
 
 .PHONY: build-all
-build-all: clean build-windows build-darwin build-linux ## Build for all platforms
+build-all: clean build-windows build-darwin ## Build for all platforms
 
 .PHONY: build-windows
 build-windows: ## Build for Windows
@@ -93,12 +93,6 @@ build-darwin: ## Build for macOS (Intel and ARM)
 	$(MKDIR) $(DIST_DIR)
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 cmd/main.go
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 cmd/main.go
-
-.PHONY: build-linux
-build-linux: ## Build for Linux
-	@echo "Building for Linux..."
-	$(MKDIR) $(DIST_DIR)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 cmd/main.go
 
 .PHONY: install
 install: build ## Install binary to GOPATH/bin
@@ -187,8 +181,7 @@ archive: build-all ## Create distribution archives
 	@cd $(DIST_DIR) && \
 	tar czf archives/$(BINARY_NAME)-windows-amd64.tar.gz $(BINARY_NAME)-windows-amd64.exe && \
 	tar czf archives/$(BINARY_NAME)-darwin-amd64.tar.gz $(BINARY_NAME)-darwin-amd64 && \
-	tar czf archives/$(BINARY_NAME)-darwin-arm64.tar.gz $(BINARY_NAME)-darwin-arm64 && \
-	tar czf archives/$(BINARY_NAME)-linux-amd64.tar.gz $(BINARY_NAME)-linux-amd64
+	tar czf archives/$(BINARY_NAME)-darwin-arm64.tar.gz $(BINARY_NAME)-darwin-arm64
 	@echo "Archives created in $(DIST_DIR)/archives/"
 
 ## Cleanup targets
