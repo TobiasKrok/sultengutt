@@ -48,14 +48,9 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 1
-          CC: ${{ matrix.goos == 'windows' && 'x86_64-w64-mingw32-gcc' || '' }}
+          CGO_ENABLED: ${{ matrix.goos == 'darwin' && '1' || '0' }}
         run: |
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -ldflags="-w -s" -o ${{ matrix.binary_name }} cmd/main.go
-          else
-            go build -ldflags="-w -s" -o ${{ matrix.binary_name }} cmd/main.go
-          fi
+          go build -ldflags="-w -s" -o ${{ matrix.binary_name }} cmd/main.go
       
       - name: Create archive
         run: |
