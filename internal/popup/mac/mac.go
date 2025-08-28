@@ -1,7 +1,7 @@
-//go:build !windows
-// +build !windows
+//go:build darwin
+// +build darwin
 
-package popup
+package mac
 
 import (
 	"image/color"

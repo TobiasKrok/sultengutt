@@ -4,12 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sultengutt/internal/config"
 	"sultengutt/internal/installer"
-	macpop "sultengutt/internal/popup/mac"
-	winpop "sultengutt/internal/popup/windows"
+	"sultengutt/internal/popup"
 	"sultengutt/internal/scheduler"
 	"sultengutt/internal/utils"
 	"time"
@@ -86,13 +84,7 @@ func main() {
 				}
 			}
 
-			switch runtime.GOOS {
-
-			case "darwin":
-				macpop.RunMacPopup(cfg.InstallOptions.SiteLink)
-			case "windows":
-				winpop.RunWindowsPopup()
-			}
+			popup.ShowPopup(cfg.InstallOptions.SiteLink)
 
 			return nil
 		},
